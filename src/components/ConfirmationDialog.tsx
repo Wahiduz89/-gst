@@ -1,215 +1,135 @@
-// src/components/invoice/InvoiceTemplate.tsx
+// src/components/ConfirmationDialog.tsx
 
 'use client';
 
-import { formatCurrency, formatDate, numberToWords } from '@/lib/utils';
-import { Invoice, InvoiceItem, Customer } from '@/types';
+import { Fragment } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
+import { AlertTriangle, X } from 'lucide-react';
 
-interface InvoiceTemplateProps {
-  invoice: Invoice & {
-    customer: Customer;
-    items: InvoiceItem[];
-  };
-  businessDetails?: {
-    businessName: string;
-    businessAddress: string;
-    businessGST?: string;
-    businessPhone?: string;
-    businessEmail?: string;
-  };
+interface ConfirmationDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  type?: 'danger' | 'warning' | 'info';
+  isLoading?: boolean;
 }
 
-export default function InvoiceTemplate({ 
-  invoice, 
-  businessDetails = {
-    businessName: 'Your Business Name',
-    businessAddress: '123 Business Street, City, State - 123456',
-    businessGST: '',
-    businessPhone: '',
-    businessEmail: '',
-  }
-}: InvoiceTemplateProps) {
-  const isInterState = invoice.customerState !== invoice.businessState;
-  
+export default function ConfirmationDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  type = 'warning',
+  isLoading = false,
+}: ConfirmationDialogProps) {
+  const iconColors = {
+    danger: 'text-red-600',
+    warning: 'text-yellow-600',
+    info: 'text-blue-600',
+  };
+
+  const buttonColors = {
+    danger: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
+    warning: 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500',
+    info: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
+  };
+
   return (
-    <div className="bg-white p-8 max-w-4xl mx-auto" id="invoice-template">
-      {/* Header */}
-      <div className="border-b-2 border-gray-300 pb-6 mb-6">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{businessDetails.businessName}</h1>
-            <p className="text-sm text-gray-600 mt-1">{businessDetails.businessAddress}</p>
-            {businessDetails.businessGST && (
-              <p className="text-sm text-gray-600">GSTIN: {businessDetails.businessGST}</p>
-            )}
-            {businessDetails.businessPhone && (
-              <p className="text-sm text-gray-600">Phone: {businessDetails.businessPhone}</p>
-            )}
-            {businessDetails.businessEmail && (
-              <p className="text-sm text-gray-600">Email: {businessDetails.businessEmail}</p>
-            )}
-          </div>
-          <div className="text-right">
-            <h2 className="text-3xl font-bold text-gray-900">TAX INVOICE</h2>
-            <p className="text-sm text-gray-600 mt-2">Invoice No: {invoice.invoiceNumber}</p>
-            <p className="text-sm text-gray-600">Date: {formatDate(invoice.createdAt)}</p>
-            {invoice.dueDate && (
-              <p className="text-sm text-gray-600">Due Date: {formatDate(invoice.dueDate)}</p>
-            )}
-          </div>
-        </div>
-      </div>
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black bg-opacity-25" />
+        </Transition.Child>
 
-      {/* Bill To Section */}
-      <div className="grid grid-cols-2 gap-8 mb-8">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-2">Bill To:</h3>
-          <p className="font-medium text-gray-900">{invoice.customer.name}</p>
-          <p className="text-sm text-gray-600">{invoice.customer.address}</p>
-          {invoice.customer.gstNumber && (
-            <p className="text-sm text-gray-600">GSTIN: {invoice.customer.gstNumber}</p>
-          )}
-          {invoice.customer.phone && (
-            <p className="text-sm text-gray-600">Phone: {invoice.customer.phone}</p>
-          )}
-          {invoice.customer.email && (
-            <p className="text-sm text-gray-600">Email: {invoice.customer.email}</p>
-          )}
-        </div>
-        
-        {/* Place of Supply */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-2">Supply Details:</h3>
-          <p className="text-sm text-gray-600">Place of Supply: {invoice.customerState || 'Not specified'}</p>
-          <p className="text-sm text-gray-600">
-            Transaction Type: {isInterState ? 'Inter-state' : 'Intra-state'}
-          </p>
-        </div>
-      </div>
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 text-center">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <div className={`p-2 rounded-full bg-opacity-10 ${
+                      type === 'danger' ? 'bg-red-100' : 
+                      type === 'warning' ? 'bg-yellow-100' : 'bg-blue-100'
+                    }`}>
+                      <AlertTriangle className={`h-6 w-6 ${iconColors[type]}`} />
+                    </div>
+                    <Dialog.Title
+                      as="h3"
+                      className="ml-3 text-lg font-medium leading-6 text-gray-900"
+                    >
+                      {title}
+                    </Dialog.Title>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
 
-      {/* Items Table */}
-      <div className="mb-8">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-900">S.No</th>
-              <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-900">Description</th>
-              <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">Qty</th>
-              <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">Rate</th>
-              <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">Amount</th>
-              {isInterState ? (
-                <>
-                  <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">IGST %</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">IGST Amt</th>
-                </>
-              ) : (
-                <>
-                  <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">CGST %</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">CGST Amt</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">SGST %</th>
-                  <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">SGST Amt</th>
-                </>
-              )}
-              <th className="border border-gray-300 px-4 py-2 text-right text-sm font-semibold text-gray-900">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoice.items.map((item, index) => (
-              <tr key={item.id}>
-                <td className="border border-gray-300 px-4 py-2 text-sm">{index + 1}</td>
-                <td className="border border-gray-300 px-4 py-2 text-sm">{item.description}</td>
-                <td className="border border-gray-300 px-4 py-2 text-sm text-right">{item.quantity}</td>
-                <td className="border border-gray-300 px-4 py-2 text-sm text-right">{formatCurrency(Number(item.rate))}</td>
-                <td className="border border-gray-300 px-4 py-2 text-sm text-right">{formatCurrency(Number(item.amount))}</td>
-                {isInterState ? (
-                  <>
-                    <td className="border border-gray-300 px-4 py-2 text-sm text-right">{Number(item.gstRate)}%</td>
-                    <td className="border border-gray-300 px-4 py-2 text-sm text-right">{formatCurrency(Number(item.igst))}</td>
-                  </>
-                ) : (
-                  <>
-                    <td className="border border-gray-300 px-4 py-2 text-sm text-right">{Number(item.gstRate) / 2}%</td>
-                    <td className="border border-gray-300 px-4 py-2 text-sm text-right">{formatCurrency(Number(item.cgst))}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-sm text-right">{Number(item.gstRate) / 2}%</td>
-                    <td className="border border-gray-300 px-4 py-2 text-sm text-right">{formatCurrency(Number(item.sgst))}</td>
-                  </>
-                )}
-                <td className="border border-gray-300 px-4 py-2 text-sm text-right font-medium">{formatCurrency(Number(item.totalAmount))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                <div className="mt-2">
+                  <p className="text-sm text-gray-500">
+                    {message}
+                  </p>
+                </div>
 
-      {/* Totals Section */}
-      <div className="flex justify-end mb-8">
-        <div className="w-80">
-          <div className="flex justify-between py-2 border-b border-gray-200">
-            <span className="text-sm text-gray-600">Subtotal</span>
-            <span className="text-sm font-medium">{formatCurrency(Number(invoice.subtotal))}</span>
-          </div>
-          {isInterState ? (
-            <div className="flex justify-between py-2 border-b border-gray-200">
-              <span className="text-sm text-gray-600">IGST</span>
-              <span className="text-sm font-medium">{formatCurrency(Number(invoice.igst))}</span>
-            </div>
-          ) : (
-            <>
-              <div className="flex justify-between py-2 border-b border-gray-200">
-                <span className="text-sm text-gray-600">CGST</span>
-                <span className="text-sm font-medium">{formatCurrency(Number(invoice.cgst))}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-gray-200">
-                <span className="text-sm text-gray-600">SGST</span>
-                <span className="text-sm font-medium">{formatCurrency(Number(invoice.sgst))}</span>
-              </div>
-            </>
-          )}
-          <div className="flex justify-between py-3 border-b-2 border-gray-300">
-            <span className="text-base font-semibold">Total Amount</span>
-            <span className="text-base font-bold">{formatCurrency(Number(invoice.totalAmount))}</span>
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                    onClick={onClose}
+                    disabled={isLoading}
+                  >
+                    {cancelText}
+                  </button>
+                  <button
+                    type="button"
+                    className={`inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${buttonColors[type]} disabled:opacity-50 disabled:cursor-not-allowed`}
+                    onClick={onConfirm}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing...
+                      </span>
+                    ) : (
+                      confirmText
+                    )}
+                  </button>
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
           </div>
         </div>
-      </div>
-
-      {/* Amount in Words */}
-      <div className="mb-8 p-4 bg-gray-50 rounded">
-        <p className="text-sm text-gray-600">Amount in words:</p>
-        <p className="text-sm font-medium text-gray-900">{numberToWords(Number(invoice.totalAmount))}</p>
-      </div>
-
-      {/* Terms and Notes */}
-      {(invoice.termsConditions || invoice.notes) && (
-        <div className="grid grid-cols-2 gap-8 mb-8">
-          {invoice.termsConditions && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Terms & Conditions:</h3>
-              <p className="text-xs text-gray-600 whitespace-pre-wrap">{invoice.termsConditions}</p>
-            </div>
-          )}
-          {invoice.notes && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Notes:</h3>
-              <p className="text-xs text-gray-600 whitespace-pre-wrap">{invoice.notes}</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="mt-12 pt-8 border-t border-gray-200">
-        <div className="flex justify-between items-end">
-          <div>
-            <p className="text-xs text-gray-500">This is a computer generated invoice</p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-semibold text-gray-900 mb-8">For {businessDetails.businessName}</p>
-            <div className="mt-8 pt-8 border-t border-gray-300 w-48">
-              <p className="text-sm text-gray-600">Authorized Signatory</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      </Dialog>
+    </Transition>
   );
 }
