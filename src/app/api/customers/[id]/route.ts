@@ -84,7 +84,7 @@ export async function GET(
       ...customer,
       invoiceCount: customer._count.invoices,
       totalRevenue: Number(totalRevenue._sum.totalAmount || 0),
-      invoices: customer.invoices.map(invoice => ({
+      invoices: customer.invoices.map((invoice: any) => ({
         ...invoice,
         totalAmount: Number(invoice.totalAmount),
       })),
