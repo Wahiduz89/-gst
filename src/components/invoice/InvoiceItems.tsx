@@ -14,6 +14,26 @@ import {
 } from 'lucide-react';
 import { formatCurrency, calculateInvoiceTotals } from '@/lib/utils';
 
+// Add this missing function since it's not in utils
+function calculateGST(amount: number, gstRate: number, isInterState: boolean) {
+  const gstAmount = (amount * gstRate) / 100;
+  
+  if (isInterState) {
+    return {
+      cgst: 0,
+      sgst: 0,
+      igst: gstAmount,
+      total: amount + gstAmount,
+    };
+  } else {
+    return {
+      cgst: gstAmount / 2,
+      sgst: gstAmount / 2,
+      igst: 0,
+      total: amount + gstAmount,
+    };
+  }
+}
 
 interface InvoiceItem {
   description: string;

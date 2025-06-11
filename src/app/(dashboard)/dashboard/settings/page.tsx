@@ -24,16 +24,25 @@ import Link from 'next/link';
 const businessSchema = z.object({
   businessName: z.string().min(2, 'Business name must be at least 2 characters'),
   businessAddress: z.string().min(5, 'Address must be at least 5 characters'),
+  businessState: z.string().min(1, 'State is required'),
   businessGST: z.string()
-    .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Invalid GST number format')
-    .optional()
-    .or(z.literal('')),
+    .refine(
+      (val) => val === '' || /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(val),
+      'Invalid GST number format'
+    )
+    .optional(),
   businessPhone: z.string()
-    .regex(/^[6-9]\d{9}$/, 'Invalid phone number')
-    .optional()
-    .or(z.literal('')),
-  businessEmail: z.string().email('Invalid email').optional().or(z.literal('')),
-  businessState: z.string(),
+    .refine(
+      (val) => val === '' || /^[6-9]\d{9}$/.test(val),
+      'Invalid phone number format'
+    )
+    .optional(),
+  businessEmail: z.string()
+    .refine(
+      (val) => val === '' || z.string().email().safeParse(val).success,
+      'Invalid email address'
+    )
+    .optional(),
 });
 
 type BusinessFormData = z.infer<typeof businessSchema>;
@@ -93,6 +102,9 @@ export default function BusinessSettingsPage() {
     resolver: zodResolver(businessSchema),
     defaultValues: {
       businessState: 'Assam',
+      businessGST: '',
+      businessPhone: '',
+      businessEmail: '',
     },
   });
 
@@ -105,10 +117,11 @@ export default function BusinessSettingsPage() {
   const fetchBusinessInfo = async () => {
     try {
       const response = await fetch('/api/user/profile');
-      const data = await response.json();
       
       if (response.ok) {
+        const data = await response.json();
         const { user } = data;
+        
         reset({
           businessName: user.businessName || '',
           businessAddress: user.businessAddress || '',
@@ -118,10 +131,12 @@ export default function BusinessSettingsPage() {
           businessState: user.businessState || 'Assam',
         });
       } else {
-        toast.error('Failed to load business information');
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Failed to load business information');
       }
     } catch (error) {
-      toast.error('Error loading business information');
+      console.error('Error loading business information:', error);
+      toast.error('Network error occurred while loading business information');
     } finally {
       setIsLoading(false);
     }
@@ -194,10 +209,12 @@ export default function BusinessSettingsPage() {
         toast.success('Business settings updated successfully');
         reset(data);
       } else {
+        console.error('Update failed:', result);
         toast.error(result.error || 'Failed to update business settings');
       }
     } catch (error) {
-      toast.error('Error updating business settings');
+      console.error('Network error:', error);
+      toast.error('Network error occurred. Please check your connection.');
     } finally {
       setIsSaving(false);
     }
@@ -269,7 +286,7 @@ export default function BusinessSettingsPage() {
                   Complete Your Business Information
                 </h3>
                 <p className="mt-1 text-sm text-yellow-700">
-                  This information will appear on all your invoices. Make sure it's accurate and up-to-date.
+                  This information will appear on all your invoices. Make sure it is accurate and up-to-date.
                 </p>
               </div>
             </div>
@@ -364,6 +381,9 @@ export default function BusinessSettingsPage() {
                     State auto-detected from GST number
                   </p>
                 )}
+                {errors.businessState && (
+                  <p className="mt-1 text-sm text-red-600">{errors.businessState.message}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -445,11 +465,11 @@ export default function BusinessSettingsPage() {
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
               <h3 className="text-sm font-medium text-green-800">Free Plan</h3>
               <p className="mt-1 text-sm text-green-700">
-                You're currently on the free plan with up to 10 invoices per month.
+                You are currently on the free plan with up to 10 invoices per month.
               </p>
             </div>
             <p className="text-sm text-gray-600">
-              Premium plans with unlimited invoices and advanced features coming soon!
+              Premium plans with unlimited invoices and advanced features coming soon.
             </p>
           </div>
         </div>
