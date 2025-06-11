@@ -3,16 +3,16 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
   id            String    @id @default(cuid())
+  name          String    // Add this line
   email         String    @unique
   password      String
   businessName  String    @default("")
@@ -55,11 +55,11 @@ model Invoice {
   customerId      String
   businessState   String          @default("Assam")
   customerState   String          @default("")
-  subtotal        Decimal         @db.Decimal(10, 2)
-  cgst            Decimal         @db.Decimal(10, 2)
-  sgst            Decimal         @db.Decimal(10, 2)
-  igst            Decimal         @db.Decimal(10, 2)
-  totalAmount     Decimal         @db.Decimal(10, 2)
+  subtotal        Decimal
+  cgst            Decimal
+  sgst            Decimal
+  igst            Decimal
+  totalAmount     Decimal
   status          InvoiceStatus   @default(DRAFT)
   dueDate         DateTime?
   termsConditions String?
@@ -83,13 +83,13 @@ model InvoiceItem {
   invoiceId     String
   description   String
   quantity      Int
-  rate          Decimal   @db.Decimal(10, 2)
-  amount        Decimal   @db.Decimal(10, 2)
-  gstRate       Decimal   @db.Decimal(5, 2)
-  cgst          Decimal   @db.Decimal(10, 2)
-  sgst          Decimal   @db.Decimal(10, 2)
-  igst          Decimal   @db.Decimal(10, 2)
-  totalAmount   Decimal   @db.Decimal(10, 2)
+  rate          Decimal
+  amount        Decimal
+  gstRate       Decimal
+  cgst          Decimal
+  sgst          Decimal
+  igst          Decimal
+  totalAmount   Decimal
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   

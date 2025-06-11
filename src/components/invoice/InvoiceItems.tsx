@@ -12,7 +12,8 @@ import {
   Percent,
   Calculator
 } from 'lucide-react';
-import { formatCurrency, calculateGST } from '@/lib/utils';
+import { formatCurrency, calculateInvoiceTotals } from '@/lib/utils';
+
 
 interface InvoiceItem {
   description: string;
