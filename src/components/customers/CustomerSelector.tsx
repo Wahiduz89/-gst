@@ -11,7 +11,8 @@ import {
   Plus,
   X,
   Loader2,
-  Check
+  Check,
+  ChevronDown
 } from 'lucide-react';
 import debounce from 'lodash/debounce';
 import { CustomerFormData } from '@/types';
@@ -38,17 +39,43 @@ export default function CustomerSelector({
 }: CustomerSelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Fetch customer by ID if selectedCustomerId is provided
+  // Load initial customers and fetch customer by ID if provided
   useEffect(() => {
-    if (selectedCustomerId) {
-      fetchCustomerById(selectedCustomerId);
-    }
+    const initializeCustomers = async () => {
+      await loadInitialCustomers();
+      if (selectedCustomerId) {
+        await fetchCustomerById(selectedCustomerId);
+      }
+      setIsInitialLoad(false);
+    };
+    
+    initializeCustomers();
   }, [selectedCustomerId]);
+
+  const loadInitialCustomers = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/customers?limit=20');
+      if (response.ok) {
+        const data = await response.json();
+        setAllCustomers(data.customers || []);
+        setCustomers(data.customers || []);
+      } else {
+        console.error('Failed to load customers:', response.status);
+      }
+    } catch (error) {
+      console.error('Error loading customers:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchCustomerById = async (customerId: string) => {
     try {
@@ -64,8 +91,9 @@ export default function CustomerSelector({
   };
 
   const searchCustomers = useCallback(async (query: string) => {
-    if (!query) {
-      setCustomers([]);
+    if (!query.trim()) {
+      // If no query, show all customers
+      setCustomers(allCustomers);
       return;
     }
 
@@ -73,20 +101,22 @@ export default function CustomerSelector({
     try {
       const params = new URLSearchParams({
         search: query,
-        limit: '5'
+        limit: '10'
       });
 
       const response = await fetch(`/api/customers?${params}`);
       if (response.ok) {
         const data = await response.json();
-        setCustomers(data.customers);
+        setCustomers(data.customers || []);
+      } else {
+        console.error('Search failed:', response.status);
       }
     } catch (error) {
       console.error('Error searching customers:', error);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [allCustomers]);
 
   const debouncedSearch = useCallback(
     debounce((query: string) => {
@@ -98,8 +128,14 @@ export default function CustomerSelector({
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value;
     setSearchQuery(query);
-    setShowDropdown(true);
     debouncedSearch(query);
+  };
+
+  const handleInputFocus = () => {
+    setShowDropdown(true);
+    if (!searchQuery && customers.length === 0) {
+      setCustomers(allCustomers);
+    }
   };
 
   const handleSelectCustomer = (customer: Customer) => {
@@ -107,13 +143,13 @@ export default function CustomerSelector({
     onCustomerSelect(customer);
     setSearchQuery('');
     setShowDropdown(false);
-    setCustomers([]);
   };
 
   const handleClearSelection = () => {
     setSelectedCustomer(null);
     onCustomerSelect(null);
     setSearchQuery('');
+    setCustomers(allCustomers);
   };
 
   const handleNewCustomerClick = () => {
@@ -124,6 +160,35 @@ export default function CustomerSelector({
       setShowNewCustomerForm(true);
     }
   };
+
+  const handleClickOutside = () => {
+    setShowDropdown(false);
+  };
+
+  const handleCustomerClick = (customer: Customer, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleSelectCustomer(customer);
+  };
+
+  // Filter customers locally for faster response
+  const filteredCustomers = searchQuery 
+    ? customers.filter(customer => 
+        customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        customer.gstNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        customer.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        customer.phone?.includes(searchQuery)
+      )
+    : customers;
+
+  if (isInitialLoad) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+        <span className="ml-2 text-sm text-gray-600">Loading customers...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -152,6 +217,7 @@ export default function CustomerSelector({
             <button
               onClick={handleClearSelection}
               className="ml-4 text-gray-400 hover:text-gray-500"
+              title="Clear selection"
             >
               <X className="h-5 w-5" />
             </button>
@@ -168,55 +234,91 @@ export default function CustomerSelector({
               type="text"
               value={searchQuery}
               onChange={handleSearchChange}
-              onFocus={() => setShowDropdown(true)}
-              placeholder="Search for a customer by name, GST, email, or phone..."
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              onFocus={handleInputFocus}
+              onBlur={() => setTimeout(handleClickOutside, 200)} // Delay to allow clicks
+              placeholder="Search for a customer or click to see all customers..."
+              className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
-            {isLoading && (
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
-              </div>
-            )}
+            <div className="absolute inset-y-0 right-0 flex items-center">
+              {isLoading && (
+                <Loader2 className="h-5 w-5 text-gray-400 animate-spin mr-2" />
+              )}
+              <button
+                onClick={handleInputFocus}
+                className="pr-3 flex items-center"
+              >
+                <ChevronDown className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
           </div>
 
           {/* Search Results Dropdown */}
-          {showDropdown && (searchQuery || customers.length > 0) && (
+          {showDropdown && (
             <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-200 max-h-60 overflow-auto">
-              {customers.length > 0 ? (
+              {filteredCustomers.length > 0 ? (
                 <>
-                  {customers.map((customer) => (
+                  {filteredCustomers.map((customer) => (
                     <button
                       key={customer.id}
-                      onClick={() => handleSelectCustomer(customer)}
+                      onClick={(e) => handleCustomerClick(customer, e)}
+                      onMouseDown={(e) => e.preventDefault()} // Prevent blur on mousedown
                       className="w-full text-left px-4 py-3 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-b-0"
                     >
                       <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900 truncate">
                             {customer.name}
                           </p>
-                          <p className="text-sm text-gray-500">
-                            {customer.gstNumber || 'No GST'} • {customer.address}
+                          <p className="text-sm text-gray-500 truncate">
+                            {customer.gstNumber ? `GST: ${customer.gstNumber}` : 'No GST'} • {customer.address}
                           </p>
+                          {(customer.phone || customer.email) && (
+                            <p className="text-xs text-gray-400 truncate">
+                              {customer.phone && `📞 ${customer.phone}`}
+                              {customer.phone && customer.email && ' • '}
+                              {customer.email && `✉️ ${customer.email}`}
+                            </p>
+                          )}
                         </div>
                         <Check className="h-4 w-4 text-green-600 opacity-0 group-hover:opacity-100" />
                       </div>
                     </button>
                   ))}
+                  
+                  <div className="border-t border-gray-100">
+                    <button
+                      onClick={handleNewCustomerClick}
+                      className="w-full text-left px-4 py-3 hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none text-indigo-600 font-medium"
+                    >
+                      <div className="flex items-center">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add new customer
+                      </div>
+                    </button>
+                  </div>
+                </>
+              ) : isLoading ? (
+                <div className="p-4 text-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mx-auto" />
+                  <p className="text-sm text-gray-500 mt-2">Loading customers...</p>
+                </div>
+              ) : allCustomers.length === 0 ? (
+                <div className="p-4 text-center">
+                  <p className="text-sm text-gray-500 mb-3">
+                    No customers found. Add your first customer to get started.
+                  </p>
                   <button
                     onClick={handleNewCustomerClick}
-                    className="w-full text-left px-4 py-3 hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none text-indigo-600 font-medium"
+                    className="w-full flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   >
-                    <div className="flex items-center">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add new customer
-                    </div>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add your first customer
                   </button>
-                </>
-              ) : searchQuery && !isLoading ? (
-                <div className="p-4">
-                  <p className="text-sm text-gray-500 text-center mb-3">
-                    No customers found
+                </div>
+              ) : (
+                <div className="p-4 text-center">
+                  <p className="text-sm text-gray-500 mb-3">
+                    No customers match "{searchQuery}"
                   </p>
                   <button
                     onClick={handleNewCustomerClick}
@@ -226,19 +328,21 @@ export default function CustomerSelector({
                     Add "{searchQuery}" as new customer
                   </button>
                 </div>
-              ) : null}
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* Quick Add Customer Form (if no onNewCustomer prop provided) */}
+      {/* Quick Add Customer Form */}
       {showNewCustomerForm && !onNewCustomer && (
         <QuickAddCustomerForm
           initialName={searchQuery}
           onSave={(customer) => {
             handleSelectCustomer(customer);
             setShowNewCustomerForm(false);
+            // Refresh the customer list
+            loadInitialCustomers();
           }}
           onCancel={() => setShowNewCustomerForm(false)}
         />
@@ -247,7 +351,7 @@ export default function CustomerSelector({
   );
 }
 
-// Quick Add Customer Form Component
+// Quick Add Customer Form Component (keeping the existing implementation)
 interface QuickAddCustomerFormProps {
   initialName?: string;
   onSave: (customer: Customer) => void;
