@@ -1,8 +1,7 @@
-// src/lib/utils.ts
+// src/lib/utils.ts - Fixed generateInvoiceNumber function
 
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Decimal } from '@prisma/client/runtime/library';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -64,14 +63,14 @@ export function numberToWords(num: number): string {
   return words + ' Only';
 }
 
-export function generateInvoiceNumber(prefix: string = 'INV'): string {
+// Fixed generateInvoiceNumber function
+export function generateInvoiceNumber(prefix: string = 'INV', count: number = 0): string {
   const date = new Date();
-  const year = date.getFullYear();
+  const year = date.getFullYear().toString().slice(-2);
   const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  const invoiceCount = String(count + 1).padStart(4, '0');
   
-  return `${prefix}-${year}${month}${day}-${random}`;
+  return `${prefix}-${year}${month}-${invoiceCount}`;
 }
 
 export function calculateInvoiceTotals(
@@ -88,8 +87,8 @@ export function calculateInvoiceTotals(
   let totalIgst = 0;
 
   const itemsWithCalculations = items.map(item => {
-    const amount = item.quantity * item.rate;
-    const gstAmount = (amount * item.gstRate) / 100;
+    const amount = Number(item.quantity) * Number(item.rate);
+    const gstAmount = (amount * Number(item.gstRate)) / 100;
     
     let cgst = 0;
     let sgst = 0;
@@ -129,15 +128,11 @@ export function calculateInvoiceTotals(
 }
 
 export function getGSTType(sellerState: string, buyerState: string): 'inter' | 'intra' {
-  // Normalize state names for comparison
   const normalizeState = (state: string) => state.toLowerCase().trim();
-  
   return normalizeState(sellerState) === normalizeState(buyerState) ? 'intra' : 'inter';
 }
 
 export function validateGSTNumber(gst: string): boolean {
-  // GST Number format: 22AAAAA0000A1Z5
-  // 2 digits state code + 10 char PAN + 1 digit entity number + 1 check letter + 1 default Z + 1 check digit
   const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
   return gstRegex.test(gst);
 }
@@ -148,7 +143,6 @@ export function validateEmail(email: string): boolean {
 }
 
 export function validatePhone(phone: string): boolean {
-  // Indian phone number validation
   const phoneRegex = /^[6-9]\d{9}$/;
   return phoneRegex.test(phone);
 }
