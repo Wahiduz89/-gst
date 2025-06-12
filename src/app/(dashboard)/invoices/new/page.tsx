@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
@@ -48,20 +48,12 @@ const invoiceFormSchema = z.object({
 
 type InvoiceFormData = z.infer<typeof invoiceFormSchema>;
 
-interface InvoiceItem {
-  description: string;
-  quantity: number;
-  rate: number;
-  gstRate: number;
-}
-
 export default function CreateInvoicePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedCustomerId = searchParams.get('customerId');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [businessInfo, setBusinessInfo] = useState<any>(null);
   const [isLoadingBusinessInfo, setIsLoadingBusinessInfo] = useState(true);
   const [totals, setTotals] = useState({
@@ -139,7 +131,7 @@ export default function CreateInvoicePage() {
     }
   };
 
-  const onSubmit = async (data: InvoiceFormData) => {
+  const handleFormSubmit = async (data: InvoiceFormData, isDraft: boolean = false) => {
     setIsSubmitting(true);
 
     try {
@@ -147,7 +139,7 @@ export default function CreateInvoicePage() {
         ...data,
         invoiceDate: new Date(data.invoiceDate).toISOString(),
         dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null,
-        status: saveAsDraft ? 'DRAFT' : 'GENERATED',
+        status: isDraft ? 'DRAFT' : 'GENERATED',
       };
 
       const response = await fetch('/api/invoices', {
@@ -161,7 +153,7 @@ export default function CreateInvoicePage() {
       const result = await response.json();
 
       if (response.ok) {
-        toast.success(`Invoice ${saveAsDraft ? 'saved as draft' : 'generated'} successfully`);
+        toast.success(`Invoice ${isDraft ? 'saved as draft' : 'generated'} successfully`);
         router.push(`/invoices/${result.invoice.id}`);
       } else {
         toast.error(result.error || 'Failed to create invoice');
@@ -170,8 +162,15 @@ export default function CreateInvoicePage() {
       toast.error('Error creating invoice');
     } finally {
       setIsSubmitting(false);
-      setSaveAsDraft(false);
     }
+  };
+
+  const onSubmit = (data: InvoiceFormData) => {
+    handleFormSubmit(data, false);
+  };
+
+  const handleSaveAsDraft = () => {
+    handleSubmit((data) => handleFormSubmit(data, true))();
   };
 
   if (isLoadingBusinessInfo) {
@@ -365,12 +364,12 @@ export default function CreateInvoicePage() {
             Cancel
           </Link>
           <button
-            type="submit"
-            onClick={() => setSaveAsDraft(true)}
+            type="button"
+            onClick={handleSaveAsDraft}
             disabled={isSubmitting}
             className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting && saveAsDraft ? (
+            {isSubmitting ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               <>
@@ -381,11 +380,10 @@ export default function CreateInvoicePage() {
           </button>
           <button
             type="submit"
-            onClick={() => setSaveAsDraft(false)}
             disabled={isSubmitting}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting && !saveAsDraft ? (
+            {isSubmitting ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               <>

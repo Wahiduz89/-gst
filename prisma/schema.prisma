@@ -51,8 +51,14 @@ model Customer {
 model Invoice {
   id              String          @id @default(cuid())
   invoiceNumber   String          @unique
+  invoiceDate     DateTime        @default(now())  // Add this line
   userId          String
-  customerId      String
+  customerId      String?
+  customerName    String          // Add this line  
+  customerGST     String?         // Add this line
+  customerAddress String          // Add this line
+  customerPhone   String?         // Add this line
+  customerEmail   String?         // Add this line
   businessState   String          @default("Assam")
   customerState   String          @default("")
   subtotal        Decimal
@@ -60,6 +66,7 @@ model Invoice {
   sgst            Decimal
   igst            Decimal
   totalAmount     Decimal
+  isInterState    Boolean         @default(false)  // Add this line
   status          InvoiceStatus   @default(DRAFT)
   dueDate         DateTime?
   termsConditions String?
@@ -68,7 +75,7 @@ model Invoice {
   updatedAt       DateTime        @updatedAt
   
   user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customer        Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer        Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items           InvoiceItem[]
   
   @@index([userId])
@@ -76,13 +83,14 @@ model Invoice {
   @@index([invoiceNumber])
   @@index([status])
   @@index([createdAt])
+  @@index([invoiceDate])
 }
 
 model InvoiceItem {
   id            String    @id @default(cuid())
   invoiceId     String
   description   String
-  quantity      Int
+  quantity      Decimal
   rate          Decimal
   amount        Decimal
   gstRate       Decimal

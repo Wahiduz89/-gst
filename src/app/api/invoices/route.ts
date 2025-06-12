@@ -1,4 +1,4 @@
-// src/app/api/invoices/route.ts - Enhanced with better error handling
+// src/app/api/invoices/route.ts - Fixed version
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthSession } from '@/lib/auth-utils';
@@ -159,6 +159,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determine customer state from GST if available
+    let customerState = user.businessState || 'Assam';
+    if (validatedData.customerGST) {
+      customerState = getStateFromGSTCode(validatedData.customerGST.substring(0, 2));
+    }
+
     // Create invoice with items in a transaction
     console.log('💾 Creating invoice in database...');
     const invoice = await prisma.$transaction(async (tx) => {
@@ -177,9 +183,7 @@ export async function POST(request: NextRequest) {
           customerPhone: validatedData.customerPhone || null,
           customerEmail: validatedData.customerEmail || null,
           businessState: user.businessState || 'Assam',
-          customerState: validatedData.customerGST ? 
-            getStateFromGSTCode(validatedData.customerGST.substring(0, 2)) : 
-            user.businessState || 'Assam',
+          customerState,
           subtotal: new Decimal(calculations.subtotal),
           cgst: new Decimal(calculations.cgst),
           sgst: new Decimal(calculations.sgst),
@@ -233,6 +237,84 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(
       { error: 'Internal server error occurred while creating invoice' },
+      { status: 500 }
+    );
+  }
+}
+
+// GET endpoint for fetching invoices
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getAuthSession();
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const search = searchParams.get('search') || '';
+    const status = searchParams.get('status') || '';
+
+    const skip = (page - 1) * limit;
+
+    // Build where clause
+    const where = {
+      userId: session.user.id,
+      ...(search && {
+        OR: [
+          { invoiceNumber: { contains: search, mode: 'insensitive' as const } },
+          { customerName: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }),
+      ...(status && { status }),
+    };
+
+    // Fetch invoices and count
+    const [invoices, total] = await Promise.all([
+      prisma.invoice.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          customer: {
+            select: {
+              name: true,
+              gstNumber: true,
+            },
+          },
+        },
+      }),
+      prisma.invoice.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      invoices: invoices.map(invoice => ({
+        ...invoice,
+        subtotal: invoice.subtotal.toString(),
+        cgst: invoice.cgst.toString(),
+        sgst: invoice.sgst.toString(),
+        igst: invoice.igst.toString(),
+        totalAmount: invoice.totalAmount.toString(),
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Invoices fetch error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch invoices' },
       { status: 500 }
     );
   }
