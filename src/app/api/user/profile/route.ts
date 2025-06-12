@@ -1,7 +1,8 @@
-// src/app/api/user/profile/route.ts
+// src/app/api/user/profile/route.ts - Fixed version
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth-utils';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -35,15 +36,21 @@ const profileUpdateSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getAuthSession();
+    console.log('Profile API: GET request received');
+    
+    const session = await getServerSession(authOptions);
+    console.log('Profile API: Session retrieved', session ? 'Found' : 'Not found');
     
     if (!session?.user?.id) {
+      console.log('Profile API: No session or user ID');
       return NextResponse.json(
-        { error: 'Unauthorized access' },
+        { error: 'Unauthorized access - Please sign in' },
         { status: 401 }
       );
     }
 
+    console.log('Profile API: Looking up user with ID:', session.user.id);
+    
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -60,18 +67,22 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    console.log('Profile API: User lookup result', user ? 'Found' : 'Not found');
+
     if (!user) {
+      console.log('Profile API: User not found in database');
       return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'User profile not found' },
         { status: 404 }
       );
     }
 
+    console.log('Profile API: Returning user data');
     return NextResponse.json({ user });
   } catch (error) {
-    console.error('Profile fetch error:', error);
+    console.error('Profile API: GET error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch profile data' },
+      { error: 'Internal server error occurred while fetching profile' },
       { status: 500 }
     );
   }
@@ -79,16 +90,20 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await getAuthSession();
+    console.log('Profile API: PATCH request received');
+    
+    const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
+      console.log('Profile API: No session for PATCH request');
       return NextResponse.json(
-        { error: 'Unauthorized access' },
+        { error: 'Unauthorized access - Please sign in' },
         { status: 401 }
       );
     }
 
     const body = await request.json();
+    console.log('Profile API: Request body received');
     
     // Validate input with detailed error reporting
     const validationResult = profileUpdateSchema.safeParse(body);
@@ -98,7 +113,7 @@ export async function PATCH(request: NextRequest) {
         `${err.path.join('.')}: ${err.message}`
       ).join(', ');
       
-      console.error('Validation errors:', validationResult.error.errors);
+      console.error('Profile API: Validation errors:', validationResult.error.errors);
       
       return NextResponse.json(
         { error: `Validation failed: ${errorMessages}` },
@@ -115,6 +130,8 @@ export async function PATCH(request: NextRequest) {
         updateData[key] = value;
       }
     });
+    
+    console.log('Profile API: Updating user with data:', Object.keys(updateData));
     
     // Update user profile
     const updatedUser = await prisma.user.update({
@@ -133,13 +150,15 @@ export async function PATCH(request: NextRequest) {
       }
     });
 
+    console.log('Profile API: User updated successfully');
+    
     return NextResponse.json({
       success: true,
       message: 'Profile updated successfully',
       user: updatedUser
     });
   } catch (error) {
-    console.error('Profile update error:', error);
+    console.error('Profile API: PATCH error:', error);
     
     if (error instanceof Error) {
       return NextResponse.json(
@@ -149,7 +168,7 @@ export async function PATCH(request: NextRequest) {
     }
     
     return NextResponse.json(
-      { error: 'Internal server error occurred' },
+      { error: 'Internal server error occurred while updating profile' },
       { status: 500 }
     );
   }
