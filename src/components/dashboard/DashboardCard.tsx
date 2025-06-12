@@ -1,3 +1,6 @@
+// src/components/dashboard/DashboardCard.tsx
+'use client';
+
 import { ReactNode } from 'react';
 
 interface DashboardCardProps {

@@ -1,5 +1,4 @@
-// src/components/dashboard/EmptyState.tsx
-
+// src/components/dashboard/EmptyState.tsx  
 'use client';
 
 import Link from 'next/link';
