@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
@@ -43,8 +43,12 @@ interface CustomerData extends CustomerFormData {
   invoiceCount: number;
 }
 
-export default function EditCustomerPage({ params }: { params: { id: string } }) {
+export default function EditCustomerPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  
+  // Unwrap the params Promise
+  const { id } = use(params);
+  
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customer, setCustomer] = useState<CustomerData | null>(null);
@@ -60,11 +64,11 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
 
   useEffect(() => {
     fetchCustomer();
-  }, [params.id]);
+  }, [id]);
 
   const fetchCustomer = async () => {
     try {
-      const response = await fetch(`/api/customers/${params.id}`);
+      const response = await fetch(`/api/customers/${id}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -101,7 +105,7 @@ export default function EditCustomerPage({ params }: { params: { id: string } })
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`/api/customers/${params.id}`, {
+      const response = await fetch(`/api/customers/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

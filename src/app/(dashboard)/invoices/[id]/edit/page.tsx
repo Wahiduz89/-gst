@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm, Controller } from 'react-hook-form';
@@ -68,8 +68,12 @@ interface InvoiceDetails {
   }>;
 }
 
-export default function EditInvoicePage({ params }: { params: { id: string } }) {
+export default function EditInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  
+  // Unwrap the params Promise
+  const { id } = use(params);
+  
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [invoice, setInvoice] = useState<InvoiceDetails | null>(null);
@@ -99,12 +103,12 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     fetchInvoiceAndBusinessInfo();
-  }, [params.id]);
+  }, [id]);
 
   const fetchInvoiceAndBusinessInfo = async () => {
     try {
       // Fetch invoice details
-      const invoiceResponse = await fetch(`/api/invoices/${params.id}`);
+      const invoiceResponse = await fetch(`/api/invoices/${id}`);
       if (!invoiceResponse.ok) {
         if (invoiceResponse.status === 404) {
           toast.error('Invoice not found');
@@ -119,7 +123,7 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
       // Check if invoice is editable
       if (invoiceData.status !== 'DRAFT') {
         toast.error('Only draft invoices can be edited');
-        router.push(`/invoices/${params.id}`);
+        router.push(`/invoices/${id}`);
         return;
       }
 
@@ -197,7 +201,7 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
         dueDate: data.dueDate ? new Date(data.dueDate).toISOString() : null,
       };
 
-      const response = await fetch(`/api/invoices/${params.id}`, {
+      const response = await fetch(`/api/invoices/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -209,7 +213,7 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
 
       if (response.ok) {
         toast.success('Invoice updated successfully');
-        router.push(`/invoices/${params.id}`);
+        router.push(`/invoices/${id}`);
       } else {
         toast.error(result.error || 'Failed to update invoice');
       }
@@ -236,7 +240,7 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
     <div className="max-w-5xl mx-auto">
       <div className="mb-8">
         <Link
-          href={`/invoices/${params.id}`}
+          href={`/invoices/${id}`}
           className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -389,7 +393,7 @@ export default function EditInvoicePage({ params }: { params: { id: string } }) 
 
         <div className="flex justify-end space-x-3">
           <Link
-            href={`/invoices/${params.id}`}
+            href={`/invoices/${id}`}
             className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
             <X className="mr-2 h-4 w-4" />

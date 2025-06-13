@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -67,10 +67,13 @@ interface InvoiceDetails {
   };
 }
 
-export default function InvoiceViewPage({ params }: { params: { id: string } }) {
+export default function InvoiceViewPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const shouldDownload = searchParams.get('download') === 'true';
+  
+  // Unwrap the params Promise
+  const { id } = use(params);
   
   const [invoice, setInvoice] = useState<InvoiceDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,7 +82,7 @@ export default function InvoiceViewPage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     fetchInvoice();
-  }, [params.id]);
+  }, [id]);
 
   useEffect(() => {
     if (shouldDownload && invoice && invoice.status === 'GENERATED') {
@@ -89,7 +92,7 @@ export default function InvoiceViewPage({ params }: { params: { id: string } }) 
 
   const fetchInvoice = async () => {
     try {
-      const response = await fetch(`/api/invoices/${params.id}`);
+      const response = await fetch(`/api/invoices/${id}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -109,7 +112,7 @@ export default function InvoiceViewPage({ params }: { params: { id: string } }) 
 
   const handleStatusChange = async (newStatus: 'GENERATED' | 'CANCELLED') => {
     try {
-      const response = await fetch(`/api/invoices/${params.id}`, {
+      const response = await fetch(`/api/invoices/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
