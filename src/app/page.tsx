@@ -644,7 +644,7 @@ export default function LandingPage() {
             <div>
               <h3 className="text-white font-semibold mb-4">Product</h3>
               <ul className="space-y-2 text-sm">
-                <li><Link href="#features" className="hover:text-white transition-colors">Features</Link></li>
+                <li><Link href="/features" className="hover:text-white transition-colors">Features</Link></li>
                 <li><Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link></li>
               </ul>
             </div>
