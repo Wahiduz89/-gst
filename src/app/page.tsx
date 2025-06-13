@@ -490,7 +490,6 @@ export default function LandingPage() {
               <ul className="mt-8 space-y-4">
                 {[
                   "Everything in Professional",
-                  "API access",
                   "Custom integrations",
                   "Dedicated account manager",
                   "24/7 phone support",
@@ -584,10 +583,10 @@ export default function LandingPage() {
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
             <Link
-              href="/contact"
+              href="/login"
               className="inline-flex items-center justify-center px-8 py-4 text-lg font-medium rounded-full text-white border-2 border-white hover:bg-white hover:text-indigo-600 transition-all duration-200"
             >
-              Talk to Sales
+              Sign In
             </Link>
           </div>
 
@@ -608,12 +607,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Enhanced Footer */}
+      {/* MVP Footer - Essential Links Only */}
       <footer className="bg-gray-900 text-gray-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Company Info */}
-            <div className="col-span-2 md:col-span-1">
+            <div>
               <div className="flex items-center mb-4">
                 <FileText className="h-8 w-8 text-indigo-400" />
                 <span className="ml-2 text-lg font-bold text-white">GST Invoice Pro</span>
@@ -647,28 +646,15 @@ export default function LandingPage() {
               <ul className="space-y-2 text-sm">
                 <li><Link href="#features" className="hover:text-white transition-colors">Features</Link></li>
                 <li><Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link></li>
-                <li><Link href="/api" className="hover:text-white transition-colors">API</Link></li>
-                <li><Link href="/integrations" className="hover:text-white transition-colors">Integrations</Link></li>
               </ul>
             </div>
 
-            {/* Company Links */}
+            {/* Support & Legal */}
             <div>
-              <h3 className="text-white font-semibold mb-4">Company</h3>
-              <ul className="space-y-2 text-sm">
-                <li><Link href="/about" className="hover:text-white transition-colors">About Us</Link></li>
-                <li><Link href="/blog" className="hover:text-white transition-colors">Blog</Link></li>
-                <li><Link href="/careers" className="hover:text-white transition-colors">Careers</Link></li>
-                <li><Link href="/contact" className="hover:text-white transition-colors">Contact</Link></li>
-              </ul>
-            </div>
-
-            {/* Support Links */}
-            <div>
-              <h3 className="text-white font-semibold mb-4">Support</h3>
+              <h3 className="text-white font-semibold mb-4">Support & Legal</h3>
               <ul className="space-y-2 text-sm">
                 <li><Link href="/help" className="hover:text-white transition-colors">Help Center</Link></li>
-                <li><Link href="/documentation" className="hover:text-white transition-colors">Documentation</Link></li>
+                <li><Link href="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
                 <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
               </ul>
