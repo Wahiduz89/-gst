@@ -1,7 +1,8 @@
-// src/app/api/customers/route.ts
+// src/app/api/customers/route.ts - Fixed version
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth-utils';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -19,15 +20,19 @@ const customerSchema = z.object({
     .nullable()
     .or(z.literal('')),
   email: z.string().email('Invalid email').optional().nullable().or(z.literal('')),
-  state: z.string().optional(),
+  state: z.string().optional().default('Assam'),
 });
 
 // GET - Fetch customers with pagination and search
 export async function GET(request: NextRequest) {
   try {
-    const session = await getAuthSession();
+    console.log('🔍 Customer GET: Starting request...');
+    
+    const session = await getServerSession(authOptions);
+    console.log('🔐 Session check:', session ? 'Found' : 'Not found');
     
     if (!session?.user?.id) {
+      console.log('❌ No authenticated user');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -72,6 +77,8 @@ export async function GET(request: NextRequest) {
       prisma.customer.count({ where }),
     ]);
 
+    console.log(`✅ Found ${customers.length} customers`);
+
     return NextResponse.json({
       customers: customers.map((customer: any) => ({
         ...customer,
@@ -85,7 +92,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Customers fetch error:', error);
+    console.error('❌ Customers fetch error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch customers' },
       { status: 500 }
@@ -96,31 +103,67 @@ export async function GET(request: NextRequest) {
 // POST - Create new customer
 export async function POST(request: NextRequest) {
   try {
-    const session = await getAuthSession();
+    console.log('🚀 Customer POST: Starting creation...');
+    
+    const session = await getServerSession(authOptions);
+    console.log('🔐 Session check:', session ? 'Found' : 'Not found');
     
     if (!session?.user?.id) {
+      console.log('❌ No authenticated user');
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - Please sign in' },
         { status: 401 }
       );
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+      console.log('📦 Request body received:', Object.keys(body));
+    } catch (parseError) {
+      console.error('❌ Failed to parse request body:', parseError);
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
     
     // Validate input
-    const validatedData = customerSchema.parse(body);
+    console.log('🔍 Validating input...');
+    let validatedData;
+    try {
+      validatedData = customerSchema.parse(body);
+      console.log('✅ Validation successful');
+    } catch (validationError) {
+      console.error('❌ Validation failed:', validationError);
+      if (validationError instanceof z.ZodError) {
+        return NextResponse.json(
+          { 
+            error: 'Validation failed', 
+            details: validationError.errors.map(err => ({
+              field: err.path.join('.'),
+              message: err.message
+            }))
+          },
+          { status: 400 }
+        );
+      }
+      throw validationError;
+    }
     
     // Extract state from GST number if available
     let state = validatedData.state;
-    if (validatedData.gstNumber && !state) {
-      // First 2 digits of GST number represent state code
+    if (validatedData.gstNumber && validatedData.gstNumber.length >= 2) {
       const stateCode = validatedData.gstNumber.substring(0, 2);
-      // You can map state codes to state names here
-      state = getStateFromCode(stateCode);
+      const detectedState = getStateFromCode(stateCode);
+      if (detectedState) {
+        state = detectedState;
+      }
     }
     
-    // Check if customer with same GST already exists
-    if (validatedData.gstNumber) {
+    // Check if customer with same GST already exists (only if GST is provided)
+    if (validatedData.gstNumber && validatedData.gstNumber.trim() !== '') {
+      console.log('🔍 Checking for duplicate GST...');
       const existingCustomer = await prisma.customer.findFirst({
         where: {
           userId: session.user.id,
@@ -129,6 +172,7 @@ export async function POST(request: NextRequest) {
       });
       
       if (existingCustomer) {
+        console.log('❌ Duplicate GST found');
         return NextResponse.json(
           { error: 'Customer with this GST number already exists' },
           { status: 400 }
@@ -137,17 +181,20 @@ export async function POST(request: NextRequest) {
     }
     
     // Create customer
+    console.log('💾 Creating customer in database...');
     const customer = await prisma.customer.create({
       data: {
         userId: session.user.id,
         name: validatedData.name,
-        gstNumber: validatedData.gstNumber || null,
+        gstNumber: validatedData.gstNumber && validatedData.gstNumber.trim() !== '' ? validatedData.gstNumber : null,
         address: validatedData.address,
-        phone: validatedData.phone || null,
-        email: validatedData.email || null,
-        state: state || '',
+        phone: validatedData.phone && validatedData.phone.trim() !== '' ? validatedData.phone : null,
+        email: validatedData.email && validatedData.email.trim() !== '' ? validatedData.email : null,
+        state: state || 'Assam',
       },
     });
+    
+    console.log('✅ Customer created successfully:', customer.id);
     
     return NextResponse.json(
       {
@@ -158,14 +205,23 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    if (error instanceof z.ZodError) {
+    console.error('💥 Customer creation error:', error);
+    
+    // Handle specific database errors
+    if (error instanceof Error) {
+      if (error.message.includes('Unique constraint')) {
+        return NextResponse.json(
+          { error: 'Customer with this information already exists' },
+          { status: 400 }
+        );
+      }
+      
       return NextResponse.json(
-        { error: 'Validation failed', details: error.errors },
-        { status: 400 }
+        { error: `Database error: ${error.message}` },
+        { status: 500 }
       );
     }
     
-    console.error('Customer creation error:', error);
     return NextResponse.json(
       { error: 'Failed to create customer' },
       { status: 500 }
