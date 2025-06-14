@@ -1,4 +1,5 @@
-// src/app/api/invoices/route.ts - Fixed version
+// src/app/api/invoices/route.ts - Updated to support HSN/SAC codes
+// Enhanced invoice API with comprehensive HSN/SAC code support
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthSession } from '@/lib/auth-utils';
@@ -12,6 +13,11 @@ const invoiceItemSchema = z.object({
   quantity: z.number().positive('Quantity must be positive'),
   rate: z.number().positive('Rate must be positive'),
   gstRate: z.number().min(0).max(28),
+  hsnSacCode: z.string().optional(),
+  hsnSacType: z.enum(['HSN', 'SAC']).default('HSN'),
+  itemCategory: z.string().optional(),
+  itemSubCategory: z.string().optional(),
+  unitOfMeasurement: z.string().default('NOS'),
 });
 
 const invoiceSchema = z.object({
@@ -40,52 +46,21 @@ const invoiceSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🚀 Invoice API: Starting invoice creation...');
+    console.log('🚀 Enhanced Invoice API: Starting invoice creation with HSN/SAC support...');
     
-    // Check authentication
     const session = await getAuthSession();
-    console.log('📝 Session check:', session ? 'Authenticated' : 'Not authenticated');
     
     if (!session?.user?.id) {
-      console.log('❌ No user session found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    // Parse request body
-    let body;
-    try {
-      body = await request.json();
-      console.log('📦 Request body parsed successfully');
-    } catch (parseError) {
-      console.error('❌ Failed to parse request body:', parseError);
-      return NextResponse.json(
-        { error: 'Invalid JSON in request body' },
-        { status: 400 }
-      );
-    }
-    
-    // Validate input
-    console.log('🔍 Validating input data...');
-    let validatedData;
-    try {
-      validatedData = invoiceSchema.parse(body);
-      console.log('✅ Input validation successful');
-    } catch (validationError) {
-      console.error('❌ Validation error:', validationError);
-      if (validationError instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Validation failed', details: validationError.errors },
-          { status: 400 }
-        );
-      }
-      throw validationError;
-    }
+    const body = await request.json();
+    const validatedData = invoiceSchema.parse(body);
     
     // Verify business information is complete
-    console.log('🏢 Checking business information...');
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -95,69 +70,76 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!user) {
-      console.log('❌ User not found in database');
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
     if (!user?.businessName || !user?.businessAddress) {
-      console.log('❌ Incomplete business information:', { 
-        hasName: !!user?.businessName, 
-        hasAddress: !!user?.businessAddress 
-      });
       return NextResponse.json(
         { error: 'Please complete your business settings before creating invoices' },
         { status: 400 }
       );
     }
 
-    console.log('✅ Business information verified');
-
     // Generate invoice number
     const invoiceCount = await prisma.invoice.count({
       where: { userId: session.user.id },
     });
     const invoiceNumber = generateInvoiceNumber('INV', invoiceCount);
-    console.log('📋 Generated invoice number:', invoiceNumber);
 
-    // Check if invoice number already exists (race condition check)
-    const existingInvoice = await prisma.invoice.findFirst({
-      where: {
-        userId: session.user.id,
-        invoiceNumber,
-      },
-    });
+    // Calculate totals with enhanced item processing
+    const calculations = calculateInvoiceTotals(
+      validatedData.items,
+      validatedData.isInterState
+    );
 
-    if (existingInvoice) {
-      console.log('❌ Invoice number collision detected');
-      return NextResponse.json(
-        { error: 'Invoice number already exists. Please try again.' },
-        { status: 400 }
-      );
-    }
+    // Process items with HSN/SAC code validation and auto-suggestions
+    const processedItems = await Promise.all(
+      validatedData.items.map(async (item, index) => {
+        let hsnSacData = null;
+        
+        // If HSN/SAC code is provided, validate and fetch details
+        if (item.hsnSacCode) {
+          hsnSacData = await prisma.hsnSacCode.findUnique({
+            where: { code: item.hsnSacCode }
+          });
+          
+          // If not found in database, check static data
+          if (!hsnSacData) {
+            const { getHsnSacByCode } = await import('@/lib/hsn-sac-data');
+            const staticData = getHsnSacByCode(item.hsnSacCode);
+            if (staticData) {
+              hsnSacData = staticData;
+            }
+          }
+        }
 
-    // Calculate totals
-    console.log('🧮 Calculating invoice totals...');
-    let calculations;
-    try {
-      calculations = calculateInvoiceTotals(
-        validatedData.items,
-        validatedData.isInterState
-      );
-      console.log('✅ Calculations complete:', {
-        subtotal: calculations.subtotal,
-        totalAmount: calculations.totalAmount
-      });
-    } catch (calculationError) {
-      console.error('❌ Calculation error:', calculationError);
-      return NextResponse.json(
-        { error: 'Failed to calculate invoice totals' },
-        { status: 500 }
-      );
-    }
+        // Auto-detect GST rate from HSN/SAC code if not provided or if code suggests different rate
+        let finalGstRate = item.gstRate;
+        if (hsnSacData?.gstRate !== null && hsnSacData?.gstRate !== undefined) {
+          finalGstRate = hsnSacData.gstRate;
+        }
+
+        // Auto-detect unit of measurement
+        let finalUnitOfMeasurement = item.unitOfMeasurement;
+        if (hsnSacData?.unitOfMeasurement) {
+          finalUnitOfMeasurement = hsnSacData.unitOfMeasurement;
+        }
+
+        // Auto-detect category information
+        let finalCategory = item.itemCategory;
+        let finalSubCategory = item.itemSubCategory;
+        if (hsnSacData) {
+          finalCategory = finalCategory || hsnSacData.category;
+          finalSubCategory = finalSubCategory || hsnSacData.subCategory;
+        }
+
+        return {
+          ...item,
+          gstRate: finalGstRate,
+          unitOfMeasurement: finalUnitOfMeasurement,
+          itemCategory: finalCategory,
+          itemSubCategory: finalSubCategory,
+          calculatedAmounts: calculations.items[index],
+        };
+      })
+    );
 
     // Determine customer state from GST if available
     let customerState = user.businessState || 'Assam';
@@ -166,7 +148,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Create invoice with items in a transaction
-    console.log('💾 Creating invoice in database...');
     const invoice = await prisma.$transaction(async (tx) => {
       // Create invoice
       const newInvoice = await tx.invoice.create({
@@ -195,31 +176,74 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Create invoice items
+      // Create invoice items with HSN/SAC data
       await tx.invoiceItem.createMany({
-        data: calculations.items.map((item, index) => ({
+        data: processedItems.map((item) => ({
           invoiceId: newInvoice.id,
-          description: validatedData.items[index].description,
-          quantity: new Decimal(validatedData.items[index].quantity),
-          rate: new Decimal(validatedData.items[index].rate),
-          gstRate: new Decimal(validatedData.items[index].gstRate),
-          amount: new Decimal(item.amount),
-          cgst: new Decimal(item.cgst),
-          sgst: new Decimal(item.sgst),
-          igst: new Decimal(item.igst),
-          totalAmount: new Decimal(item.totalAmount),
+          description: item.description,
+          quantity: new Decimal(item.quantity),
+          rate: new Decimal(item.rate),
+          gstRate: new Decimal(item.gstRate),
+          amount: new Decimal(item.calculatedAmounts.amount),
+          cgst: new Decimal(item.calculatedAmounts.cgst),
+          sgst: new Decimal(item.calculatedAmounts.sgst),
+          igst: new Decimal(item.calculatedAmounts.igst),
+          totalAmount: new Decimal(item.calculatedAmounts.totalAmount),
+          hsnSacCode: item.hsnSacCode || null,
+          hsnSacType: item.hsnSacType,
+          itemCategory: item.itemCategory || null,
+          itemSubCategory: item.itemSubCategory || null,
+          unitOfMeasurement: item.unitOfMeasurement,
         })),
       });
+
+      // Update frequently used items for each invoice item
+      await Promise.all(
+        processedItems.map(async (item) => {
+          if (item.hsnSacCode) {
+            await tx.frequentlyUsedItem.upsert({
+              where: {
+                userId_itemName: {
+                  userId: session.user.id,
+                  itemName: item.description,
+                }
+              },
+              create: {
+                userId: session.user.id,
+                itemName: item.description,
+                hsnSacCode: item.hsnSacCode,
+                hsnSacType: item.hsnSacType,
+                defaultRate: new Decimal(item.rate),
+                defaultGstRate: new Decimal(item.gstRate),
+                unitOfMeasurement: item.unitOfMeasurement,
+                category: item.itemCategory,
+                usageCount: 1,
+                lastUsedAt: new Date(),
+              },
+              update: {
+                hsnSacCode: item.hsnSacCode,
+                hsnSacType: item.hsnSacType,
+                defaultRate: new Decimal(item.rate),
+                defaultGstRate: new Decimal(item.gstRate),
+                unitOfMeasurement: item.unitOfMeasurement,
+                category: item.itemCategory,
+                usageCount: { increment: 1 },
+                lastUsedAt: new Date(),
+              },
+            });
+          }
+        })
+      );
 
       return newInvoice;
     });
 
-    console.log('✅ Invoice created successfully:', invoice.id);
+    console.log('✅ Enhanced invoice created successfully with HSN/SAC support:', invoice.id);
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Invoice created successfully',
+        message: 'Invoice created successfully with HSN/SAC codes',
         invoice: {
           ...invoice,
           subtotal: invoice.subtotal.toString(),
@@ -232,9 +256,14 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('💥 Unexpected error in invoice creation:', error);
-    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
-    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: error.errors },
+        { status: 400 }
+      );
+    }
+
+    console.error('💥 Enhanced invoice creation error:', error);
     return NextResponse.json(
       { error: 'Internal server error occurred while creating invoice' },
       { status: 500 }
@@ -242,7 +271,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET endpoint for fetching invoices
+// GET endpoint remains largely the same but includes HSN/SAC data in response
 export async function GET(request: NextRequest) {
   try {
     const session = await getAuthSession();
@@ -262,7 +291,6 @@ export async function GET(request: NextRequest) {
 
     const skip = (page - 1) * limit;
 
-    // Build where clause
     const where = {
       userId: session.user.id,
       ...(search && {
@@ -274,7 +302,6 @@ export async function GET(request: NextRequest) {
       ...(status && { status }),
     };
 
-    // Fetch invoices and count
     const [invoices, total] = await Promise.all([
       prisma.invoice.findMany({
         where,
@@ -290,6 +317,15 @@ export async function GET(request: NextRequest) {
               gstNumber: true,
             },
           },
+          items: {
+            select: {
+              hsnSacCode: true,
+              hsnSacType: true,
+              itemCategory: true,
+              unitOfMeasurement: true,
+            },
+            take: 1, // Just to check if invoice has HSN/SAC codes
+          },
         },
       }),
       prisma.invoice.count({ where }),
@@ -303,6 +339,7 @@ export async function GET(request: NextRequest) {
         sgst: invoice.sgst.toString(),
         igst: invoice.igst.toString(),
         totalAmount: invoice.totalAmount.toString(),
+        hasHsnSacCodes: invoice.items.some(item => item.hsnSacCode),
       })),
       pagination: {
         page,
@@ -312,7 +349,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Invoices fetch error:', error);
+    console.error('Enhanced invoices fetch error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch invoices' },
       { status: 500 }

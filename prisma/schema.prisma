@@ -1,5 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Updated prisma/schema.prisma with HSN/SAC code support
 
 generator client {
   provider = "prisma-client-js"
@@ -12,7 +11,7 @@ datasource db {
 
 model User {
   id            String    @id @default(cuid())
-  name          String    // Add this line
+  name          String
   email         String    @unique
   password      String
   businessName  String    @default("")
@@ -26,6 +25,7 @@ model User {
   
   invoices      Invoice[]
   customers     Customer[]
+  frequentlyUsedItems FrequentlyUsedItem[]
 }
 
 model Customer {
@@ -51,14 +51,14 @@ model Customer {
 model Invoice {
   id              String          @id @default(cuid())
   invoiceNumber   String          @unique
-  invoiceDate     DateTime        @default(now())  // Add this line
+  invoiceDate     DateTime        @default(now())
   userId          String
   customerId      String?
-  customerName    String          // Add this line  
-  customerGST     String?         // Add this line
-  customerAddress String          // Add this line
-  customerPhone   String?         // Add this line
-  customerEmail   String?         // Add this line
+  customerName    String
+  customerGST     String?
+  customerAddress String
+  customerPhone   String?
+  customerEmail   String?
   businessState   String          @default("Assam")
   customerState   String          @default("")
   subtotal        Decimal
@@ -66,7 +66,7 @@ model Invoice {
   sgst            Decimal
   igst            Decimal
   totalAmount     Decimal
-  isInterState    Boolean         @default(false)  // Add this line
+  isInterState    Boolean         @default(false)
   status          InvoiceStatus   @default(DRAFT)
   dueDate         DateTime?
   termsConditions String?
@@ -87,27 +87,84 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id            String    @id @default(cuid())
-  invoiceId     String
-  description   String
-  quantity      Decimal
-  rate          Decimal
-  amount        Decimal
-  gstRate       Decimal
-  cgst          Decimal
-  sgst          Decimal
-  igst          Decimal
-  totalAmount   Decimal
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  invoiceId         String
+  description       String
+  quantity          Decimal
+  rate              Decimal
+  amount            Decimal
+  gstRate           Decimal
+  cgst              Decimal
+  sgst              Decimal
+  igst              Decimal
+  totalAmount       Decimal
+  // New HSN/SAC fields
+  hsnSacCode        String?
+  hsnSacType        HsnSacType @default(HSN)
+  itemCategory      String?
+  itemSubCategory   String?
+  unitOfMeasurement String    @default("NOS")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
   
-  invoice       Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice           Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  hsnSacReference   HsnSacCode? @relation(fields: [hsnSacCode], references: [code])
   
   @@index([invoiceId])
+  @@index([hsnSacCode])
+}
+
+model HsnSacCode {
+  id                String     @id @default(cuid())
+  code              String     @unique
+  type              HsnSacType
+  description       String
+  category          String
+  subCategory       String?
+  gstRate           Decimal?
+  unitOfMeasurement String     @default("NOS")
+  isActive          Boolean    @default(true)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  
+  invoiceItems      InvoiceItem[]
+  
+  @@index([code])
+  @@index([type])
+  @@index([category])
+  @@index([isActive])
+}
+
+model FrequentlyUsedItem {
+  id                String     @id @default(cuid())
+  userId            String
+  itemName          String
+  hsnSacCode        String?
+  hsnSacType        HsnSacType @default(HSN)
+  defaultRate       Decimal?
+  defaultGstRate    Decimal    @default(18)
+  unitOfMeasurement String     @default("NOS")
+  category          String?
+  usageCount        Int        @default(1)
+  lastUsedAt        DateTime   @default(now())
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([hsnSacCode])
+  @@index([usageCount])
+  @@index([lastUsedAt])
 }
 
 enum InvoiceStatus {
   DRAFT
   GENERATED
   CANCELLED
+}
+
+enum HsnSacType {
+  HSN
+  SAC
 }
