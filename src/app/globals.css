@@ -111,3 +111,46 @@ body {
 
 .pdf-generation .border-gray-200 { border-color: #e5e7eb !important; }
 .pdf-generation .border-gray-300 { border-color: #d1d5db !important; }
+
+/* Enhanced Input Styles for Better Visibility */
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important; /* Tailwind gray-400 */
+  opacity: 1 !important;
+}
+
+/* Dark mode placeholder support */
+@media (prefers-color-scheme: dark) {
+  input::placeholder,
+  textarea::placeholder {
+    color: #6b7280 !important; /* Tailwind gray-500 */
+  }
+}
+
+/* Focus styles for better accessibility */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid #3b82f6 !important; /* Tailwind blue-500 */
+  outline-offset: 2px !important;
+}
+
+/* Responsive table styles */
+@media (max-width: 640px) {
+  .responsive-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+/* Print styles for invoices */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .print-break {
+    page-break-after: always;
+  }
+}

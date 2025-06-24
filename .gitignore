@@ -41,3 +41,18 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+
+# Uploads
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Environment files
+.env.local
+.env.production
+.env*.local
+
+# Database
+*.db
+*.db-journal
+prisma/migrations/dev/

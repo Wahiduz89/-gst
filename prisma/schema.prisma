@@ -1,4 +1,4 @@
-// Updated prisma/schema.prisma with HSN/SAC code support
+// prisma/schema.prisma - Production Ready Schema
 
 generator client {
   provider = "prisma-client-js"
@@ -10,28 +10,30 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  password      String
-  businessName  String    @default("")
-  businessAddress String  @default("")
-  businessGST   String?
-  businessPhone String?
-  businessEmail String?
-  businessState String    @default("Assam")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  name              String
+  email             String    @unique
+  password          String
+  businessName      String    @default("")
+  businessAddress   String    @default("")
+  businessGST       String?
+  businessPAN       String?   // New field for PAN
+  businessPhone     String?
+  businessEmail     String?
+  businessState     String    @default("Assam")
+  businessLogo      String?   // New field for logo URL/path
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
   
-  invoices      Invoice[]
-  customers     Customer[]
-  frequentlyUsedItems FrequentlyUsedItem[]
+  invoices          Invoice[]
+  customers         Customer[]
 }
 
 model Customer {
   id         String    @id @default(cuid())
   name       String
   gstNumber  String?
+  panNumber  String?   // Optional PAN for customers
   address    String
   phone      String?
   email      String?
@@ -71,6 +73,9 @@ model Invoice {
   dueDate         DateTime?
   termsConditions String?
   notes           String?
+  paymentStatus   PaymentStatus   @default(PENDING)
+  paidAmount      Decimal         @default(0)
+  paymentDate     DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   
@@ -84,6 +89,7 @@ model Invoice {
   @@index([status])
   @@index([createdAt])
   @@index([invoiceDate])
+  @@index([paymentStatus])
 }
 
 model InvoiceItem {
@@ -98,64 +104,12 @@ model InvoiceItem {
   sgst              Decimal
   igst              Decimal
   totalAmount       Decimal
-  // New HSN/SAC fields
-  hsnSacCode        String?
-  hsnSacType        HsnSacType @default(HSN)
-  itemCategory      String?
-  itemSubCategory   String?
-  unitOfMeasurement String    @default("NOS")
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   
   invoice           Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  hsnSacReference   HsnSacCode? @relation(fields: [hsnSacCode], references: [code])
   
   @@index([invoiceId])
-  @@index([hsnSacCode])
-}
-
-model HsnSacCode {
-  id                String     @id @default(cuid())
-  code              String     @unique
-  type              HsnSacType
-  description       String
-  category          String
-  subCategory       String?
-  gstRate           Decimal?
-  unitOfMeasurement String     @default("NOS")
-  isActive          Boolean    @default(true)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  
-  invoiceItems      InvoiceItem[]
-  
-  @@index([code])
-  @@index([type])
-  @@index([category])
-  @@index([isActive])
-}
-
-model FrequentlyUsedItem {
-  id                String     @id @default(cuid())
-  userId            String
-  itemName          String
-  hsnSacCode        String?
-  hsnSacType        HsnSacType @default(HSN)
-  defaultRate       Decimal?
-  defaultGstRate    Decimal    @default(18)
-  unitOfMeasurement String     @default("NOS")
-  category          String?
-  usageCount        Int        @default(1)
-  lastUsedAt        DateTime   @default(now())
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  
-  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@index([userId])
-  @@index([hsnSacCode])
-  @@index([usageCount])
-  @@index([lastUsedAt])
 }
 
 enum InvoiceStatus {
@@ -164,7 +118,8 @@ enum InvoiceStatus {
   CANCELLED
 }
 
-enum HsnSacType {
-  HSN
-  SAC
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
 }
