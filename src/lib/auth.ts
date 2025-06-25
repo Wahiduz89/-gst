@@ -1,6 +1,7 @@
-// src/lib/auth.ts
+// src/lib/auth.ts (Updated version)
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -25,8 +26,8 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email }
         });
 
-        if (!user || !user.password) {
-          throw new Error('User not found');
+        if (!user) {
+          throw new Error('Invalid email or password');
         }
 
         const isPasswordValid = await bcrypt.compare(
@@ -35,7 +36,7 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!isPasswordValid) {
-          throw new Error('Invalid password');
+          throw new Error('Invalid email or password');
         }
 
         return {
@@ -44,25 +45,61 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
         };
       }
-    })
+    }),
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? [
+      GoogleProvider({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        authorization: {
+          params: {
+            prompt: "consent",
+            access_type: "offline",
+            response_type: "code"
+          }
+        }
+      })
+    ] : []),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
       }
       return token;
     },
     async session({ session, token }) {
-      if (session?.user) {
+      if (session?.user && token?.id) {
         session.user.id = token.id as string;
       }
       return session;
+    },
+    async signIn({ user, account, profile }) {
+      if (account?.provider === 'google') {
+        try {
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email! }
+          });
+
+          if (!existingUser) {
+            await prisma.user.create({
+              data: {
+                email: user.email!,
+                name: user.name!,
+                password: '', // Empty password for OAuth users
+                businessName: user.name!,
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error in Google sign in:', error);
+          return false;
+        }
+      }
+      return true;
     }
   },
   pages: {
     signIn: '/auth/signin',
-    signUp: '/auth/signup',
     error: '/auth/error',
   },
   session: {
@@ -70,9 +107,10 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === 'development',
 };
 
-// Types extension for TypeScript
+// Types extension
 declare module 'next-auth' {
   interface Session {
     user: {
@@ -82,52 +120,3 @@ declare module 'next-auth' {
     };
   }
 }
-
-// Auth utility functions
-export const authUtils = {
-  async createUser(data: {
-    name: string;
-    email: string;
-    password: string;
-    businessName?: string;
-  }) {
-    const hashedPassword = await bcrypt.hash(data.password, 12);
-    
-    const user = await prisma.user.create({
-      data: {
-        name: data.name,
-        email: data.email,
-        password: hashedPassword,
-        businessName: data.businessName || data.name,
-      }
-    });
-    
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    };
-  },
-
-  async verifyUser(email: string, password: string) {
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
-
-    if (!user || !user.password) {
-      return null;
-    }
-
-    const isValid = await bcrypt.compare(password, user.password);
-    
-    if (!isValid) {
-      return null;
-    }
-
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    };
-  }
-};
