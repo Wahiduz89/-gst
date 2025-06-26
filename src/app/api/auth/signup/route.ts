@@ -1,81 +1,72 @@
-// src/app/api/auth/signup/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
+import { NextRequest, NextResponse } from "next/server"
+import { PrismaClient } from "@prisma/client"
+import bcrypt from "bcryptjs"
+import { z } from "zod"
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient()
+
+const signUpSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(8),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+})
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, email, password, confirmPassword } = await req.json();
-
-    // Validation
-    if (!name || !email || !password || !confirmPassword) {
-      return NextResponse.json(
-        { error: 'All fields are required' },
-        { status: 400 }
-      );
-    }
-
-    if (password !== confirmPassword) {
-      return NextResponse.json(
-        { error: 'Passwords do not match' },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
-        { status: 400 }
-      );
-    }
-
-    // Check if user already exists
+    const body = await req.json()
+    const validatedData = signUpSchema.parse(body)
+    
     const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
-
+      where: { email: validatedData.email }
+    })
+    
     if (existingUser) {
       return NextResponse.json(
-        { error: 'User with this email already exists' },
-        { status: 400 }
-      );
+        { error: "User with this email already exists" },
+        { status: 409 }
+      )
     }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Create user
+    
+    const hashedPassword = await bcrypt.hash(validatedData.password, 12)
+    
     const user = await prisma.user.create({
       data: {
-        name,
-        email,
+        name: validatedData.name,
+        email: validatedData.email,
         password: hashedPassword,
-        businessName: name, // Default business name to user's name
+        businessName: "",
+        businessAddress: "",
+        businessState: "Assam",
       },
       select: {
         id: true,
         name: true,
         email: true,
       }
-    });
-
+    })
+    
     return NextResponse.json({
-      success: true,
-      message: 'Account created successfully',
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      }
-    });
-
+      message: "Account created successfully",
+      user
+    }, { status: 201 })
+    
   } catch (error) {
-    console.error('Signup error:', error);
+    console.error("Signup error:", error)
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Validation error", details: error.errors },
+        { status: 400 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: "Internal server error" },
       { status: 500 }
-    );
+    )
   }
 }
