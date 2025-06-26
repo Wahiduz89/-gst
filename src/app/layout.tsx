@@ -5,6 +5,7 @@ import ToastProvider from '@/components/ToastProvider';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { NetworkStatus } from '@/components/feedback/FeedbackComponents';
 
+
 export const metadata: Metadata = {
   title: 'GST Invoice Generator - Professional Invoicing for Indian Businesses',
   description: 'Create GST-compliant invoices, manage customers, and streamline your billing process with our easy-to-use invoice generator designed for Indian small businesses.',
