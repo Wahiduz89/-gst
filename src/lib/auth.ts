@@ -1,12 +1,10 @@
-// src/lib/auth.ts (Updated version)
+// src/lib/auth.ts - Corrected version
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -61,7 +59,7 @@ export const authOptions: NextAuthOptions = {
     ] : []),
   ],
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
       }
@@ -73,7 +71,7 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       if (account?.provider === 'google') {
         try {
           const existingUser = await prisma.user.findUnique({
@@ -87,6 +85,7 @@ export const authOptions: NextAuthOptions = {
                 name: user.name!,
                 password: '', // Empty password for OAuth users
                 businessName: user.name!,
+                businessState: 'Assam',
               }
             });
           }
@@ -99,7 +98,7 @@ export const authOptions: NextAuthOptions = {
     }
   },
   pages: {
-    signIn: '/auth/signin',
+    signIn: '/login',
     error: '/auth/error',
   },
   session: {
