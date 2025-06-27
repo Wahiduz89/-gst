@@ -1,4 +1,4 @@
-// src/lib/auth.ts - Corrected version
+// src/lib/auth.ts
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
@@ -24,7 +24,7 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email }
         });
 
-        if (!user) {
+        if (!user || !user.password) {
           throw new Error('Invalid email or password');
         }
 
@@ -44,22 +44,20 @@ export const authOptions: NextAuthOptions = {
         };
       }
     }),
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? [
-      GoogleProvider({
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        authorization: {
-          params: {
-            prompt: "consent",
-            access_type: "offline",
-            response_type: "code"
-          }
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code"
         }
-      })
-    ] : []),
+      }
+    }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
       }
@@ -71,26 +69,30 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       if (account?.provider === 'google') {
         try {
+          // Check if user already exists
           const existingUser = await prisma.user.findUnique({
             where: { email: user.email! }
           });
 
           if (!existingUser) {
+            // Create new user for Google OAuth
             await prisma.user.create({
               data: {
                 email: user.email!,
-                name: user.name!,
+                name: user.name || 'Google User',
                 password: '', // Empty password for OAuth users
-                businessName: user.name!,
+                businessName: user.name || '',
+                businessAddress: '',
                 businessState: 'Assam',
               }
             });
           }
+          return true;
         } catch (error) {
-          console.error('Error in Google sign in:', error);
+          console.error('Error in Google sign in callback:', error);
           return false;
         }
       }
@@ -109,7 +111,7 @@ export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === 'development',
 };
 
-// Types extension
+// Type extensions
 declare module 'next-auth' {
   interface Session {
     user: {
