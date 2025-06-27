@@ -1,4 +1,4 @@
-// src/lib/auth.ts
+// src/lib/auth.ts - Enhanced configuration with better error handling
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import GoogleProvider from 'next-auth/providers/google';
@@ -17,31 +17,39 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Invalid credentials');
+          console.error('Missing credentials');
+          return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        });
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email }
+          });
 
-        if (!user || !user.password) {
-          throw new Error('Invalid email or password');
+          if (!user || !user.password) {
+            console.error('User not found or no password');
+            return null;
+          }
+
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          );
+
+          if (!isPasswordValid) {
+            console.error('Invalid password');
+            return null;
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          };
+        } catch (error) {
+          console.error('Authorization error:', error);
+          return null;
         }
-
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
-
-        if (!isPasswordValid) {
-          throw new Error('Invalid email or password');
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        };
       }
     }),
     GoogleProvider({
@@ -72,14 +80,18 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account, profile }) {
       if (account?.provider === 'google') {
         try {
+          console.log('🔍 Google sign-in attempt for:', user.email);
+          
           // Check if user already exists
           const existingUser = await prisma.user.findUnique({
             where: { email: user.email! }
           });
 
           if (!existingUser) {
+            console.log('👤 Creating new user for Google OAuth');
+            
             // Create new user for Google OAuth
-            await prisma.user.create({
+            const newUser = await prisma.user.create({
               data: {
                 email: user.email!,
                 name: user.name || 'Google User',
@@ -89,10 +101,15 @@ export const authOptions: NextAuthOptions = {
                 businessState: 'Assam',
               }
             });
+            
+            console.log('✅ New user created:', newUser.id);
+          } else {
+            console.log('✅ Existing user found:', existingUser.id);
           }
+          
           return true;
         } catch (error) {
-          console.error('Error in Google sign in callback:', error);
+          console.error('❌ Error in Google sign-in callback:', error);
           return false;
         }
       }
@@ -109,6 +126,17 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === 'development',
+  events: {
+    async signIn(message) {
+      console.log('Sign in event:', message);
+    },
+    async signOut(message) {
+      console.log('Sign out event:', message);
+    },
+    async session(message) {
+      console.log('Session event:', message);
+    },
+  },
 };
 
 // Type extensions
