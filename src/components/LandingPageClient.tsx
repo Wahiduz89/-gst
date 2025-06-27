@@ -1,4 +1,4 @@
-// src/components/LandingPageClient.tsx
+// src/components/LandingPageClient.tsx - Fixed Client Components
 'use client';
 
 import { useState } from 'react';
@@ -28,7 +28,7 @@ export function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <div className="flex items-center group">
+          <Link href="/" className="flex items-center group">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg blur-lg opacity-25 group-hover:opacity-40 transition-opacity"></div>
               <FileText className="relative h-8 w-8 text-indigo-600" />
@@ -36,7 +36,7 @@ export function Navigation() {
             <span className="ml-2 text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
               GST Invoice Pro
             </span>
-          </div>
+          </Link>
           
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
@@ -228,20 +228,4 @@ export function FooterCTA() {
       </div>
     </section>
   );
-}
-
-// Smooth Scroll Handler for Navigation Links
-export function SmoothScrollHandler() {
-  const handleSmoothScroll = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
-    e.preventDefault();
-    const targetElement = document.querySelector(targetId);
-    if (targetElement) {
-      targetElement.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'start'
-      });
-    }
-  };
-
-  return { handleSmoothScroll };
 }

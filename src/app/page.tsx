@@ -1,4 +1,4 @@
-// src/app/page.tsx - Fixed version
+// src/app/page.tsx - Fixed Server Component Version
 
 import Link from 'next/link';
 import { 
@@ -19,8 +19,6 @@ import {
   Sparkles,
   Star,
   Quote,
-  Menu,
-  X,
   ChevronRight,
   Award,
   Headphones,
