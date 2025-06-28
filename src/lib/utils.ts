@@ -63,8 +63,13 @@ export function numberToWords(num: number): string {
   return words + ' Only';
 }
 
-// Fixed generateInvoiceNumber function
-export function generateInvoiceNumber(prefix: string = 'INV', count: number = 0): string {
+export async function generateInvoiceNumber(userId: string, prefix: string = 'INV'): Promise<string> {
+  const { prisma } = await import('@/lib/prisma');
+  
+  const count = await prisma.invoice.count({
+    where: { userId }
+  });
+  
   const date = new Date();
   const year = date.getFullYear().toString().slice(-2);
   const month = String(date.getMonth() + 1).padStart(2, '0');
